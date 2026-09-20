@@ -1,7 +1,7 @@
 Name                 "Sci-Fi Objects"
 Author               Knight
-Description          "Re-materials the furniture and equipment of the whole prison in a clean futuristic finish, in 2D and in 3D, to sit beside Sci-Fi Security. Wooden tables, desks, shelves and plain doors become a light titanium composite that keeps the grain and everything sitting on it. Beds become sleep capsules with rows of light tubes, the autopsy table becomes brushed steel, and the screens the game drew are lit. Built floors and walls follow: concrete and tile go neutral, wood, brick and iron become composite with their pattern kept, and grass, dirt and water are not touched. Colour that means something stays: staff, remote and jail doors keep their colours, and so do crosses, labels and warning marks. People, animals, plants, food and tools are drawn as they always were. It changes how things look and nothing else."
-Version              1.4
+Description          "Re-materials the furniture and equipment of the whole prison in a clean futuristic finish, in 2D and in 3D, to sit beside Sci-Fi Security. Wooden tables, desks, shelves and plain doors become a light titanium composite that keeps the grain and everything sitting on it. Beds become sleep capsules with rows of light tubes, the autopsy table becomes brushed steel, and it lights the screens the game drew. Built floors and walls follow: concrete and tile go neutral, wood, brick and iron become composite with their pattern kept, and it leaves grass, dirt and water alone. Colour that means something stays: staff, remote and jail doors keep their colours, and so do crosses, labels and warning marks. People, animals, plants, food and tools look as they always did. It changes how things look and nothing else."
+Version              1.5
 IsTranslation        false
 FileID               F3804744162
 SteamAuthor          A76561199183450488
