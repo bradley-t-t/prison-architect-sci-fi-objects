@@ -288,8 +288,11 @@ def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None, coded=None)
                     plate = [(0.00, tuple(own * 0.16)), (0.34, tuple(own * 0.56)),
                              (0.72, tuple(np.clip(own * 1.04, 0, 255))),
                              (1.00, tuple(np.clip(own * 0.42 + 214, 0, 255)))]
+            # Every door is the same plate, so the level is the plate's and only
+            # the shading is the door's. Reading it off absolute brightness
+            # instead left a dark door, like the swollen one, darker still.
             soft = nd.gaussian_filter(np.where(m, l, float(l[m].mean())), 2.0)
-            px[m] = ramp(plate, np.clip(0.34 + 0.50 * soft, 0, 1)[m])
+            px[m] = ramp(plate, np.clip(0.62 + (soft - float(np.median(soft[m]))) * 0.50, 0, 1)[m])
             jamb = m & (d < 2.0)
             px[jamb] = ramp(PANEL, np.clip(0.22 + 0.55 * l, 0, 1)[jamb])
             leaf = m & (d >= 2.0)
