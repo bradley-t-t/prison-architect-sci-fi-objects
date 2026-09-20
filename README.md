@@ -20,6 +20,10 @@ object, price, room or rule is touched.
 | Cooker | Induction: each ring is a disc of black glass with a fine heat line, on cleaned steel |
 | Jail doors | Polished bars in a graphite frame, the colour band untouched |
 | Displays the game drew: monitor walls, arcade and machine screens | Lit in their own colour, with scanlines |
+| Built floors in grey: concrete, tiles, paving, ceramic, checkered, hexagonal, triangular | A true neutral at the same brightness; concrete, concrete tiles and paving stone get a lit top edge and a shaded bottom edge, so each slab reads as a panel |
+| Built floors in brown: wood, dark wood, laminate, reclaimed brick, mosaic, iron | Titanium composite with the boards, bricks and pattern kept, and each one as dark or light as it was |
+| Metal, cargo and grate floors | Neutral steel with more contrast |
+| Built walls: concrete, perimeter, tiled, block, brick, the painted walls and every security grade | Neutral, or composite for brick, with each grade's colour band kept |
 
 ## What never changes
 
@@ -48,6 +52,26 @@ matches the third. A small sprite lying inside another's picture and sharing its
 colours is a reused texture, the crate label being a square of the white canteen
 table, and follows its host.
 
+## Walls and floors
+
+`tools/gen_tiles.py` re-materials the tileset one named material at a time, so
+grass, dirt, sand, water, roads and every other natural tile stay as the game
+drew them. The art deco wall keeps its gold.
+
+The game takes `tilesetpadded.png` whole from one mod, and Sci-Fi Security
+already ships one carrying its laser fences. So the generator builds on
+Security's file and leaves every cell that differs from the game's own alone,
+and both mods ship the same result. Whichever loads last, the fences and the
+floors are both there.
+
+```bash
+python tools/gen_tiles.py "<the game's unpacked data folder>" <Security's tileset> <out.png>
+```
+
+A tile is 64 pixels inside a 72 pixel cell. A floor's padding wraps round from
+its opposite edge and a wall's repeats its own edge, and the generator keeps
+both.
+
 ## How it is built
 
 Nothing is painted by hand. `tools/skin.py` reads each pixel's hue to tell what
@@ -73,6 +97,8 @@ no person does.
 | `data/shapes/objects-maps.png` | The re-skinned 3D colour sheet |
 | `tools/skin.py` | The pixel filter |
 | `tools/gen_assets.py` | Builds every sheet and the card art |
+| `data/tilesetpadded.png` | The re-materialled walls and floors, with Sci-Fi Security's fences in it |
+| `tools/gen_tiles.py` | Builds the tileset |
 
 Install by copying `manifest.txt`, `thumbnail.png` and `data/` into a folder
 under the game's `mods` directory and turning the mod on in the game.
@@ -83,3 +109,7 @@ The game keeps one copy of each object sheet, from the last mod in the load
 order that ships one. Any other mod that replaces `objects.png` or the 3D
 colour sheet wins or loses to this one whole. Mods that add their own objects
 in their own `sprites.png` are unaffected and keep their own look.
+
+The tileset works the same way. Sci-Fi Security ships the identical file, so
+the two never fight; a third mod that replaces `tilesetpadded.png` and loads
+later takes the floors, the walls and the fences back to its own.
