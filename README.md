@@ -9,7 +9,7 @@ object, price, room or rule is touched.
 
 | The game draws | The mod draws |
 | :--- | :--- |
-| Wood and cardboard laid on thick: table tops, desks, shelves, plain doors, sheds | A light titanium composite that keeps the grain, the shading and everything sitting on it |
+| Wood and cardboard laid on thick: table tops, desks, shelves, sheds | A light titanium composite that keeps the grain, the shading and everything sitting on it |
 | Greens and blues: baize, bedding, upholstery | The same colour, quieter, at the same brightness |
 | Metal and paintwork that is already grey | The same brightness, brought to a true neutral |
 | Pale blue: ice, water, a lit screen | Left exactly alone |
@@ -18,7 +18,9 @@ object, price, room or rule is touched.
 | Toilet, sink, shower head, kitchen sink | Clean white composite with the stains gone and every fitting kept; a toilet bowl is dark glass with one line of light round its rim |
 | Canteen table, bench, serving table and their small versions | One brushed steel sheet, the smears gone, with a panel joint every metre |
 | Cooker | Induction: each ring is a disc of black glass with a fine heat line, on cleaned steel |
-| Jail doors | Polished bars in a graphite frame, the colour band untouched |
+| Doors: plain, double, staff, solitary, remote, visiting, secure, and the wooden ones outside | A powered two-leaf plate: a milled seam where the leaves meet, a recessed panel in each, chevrons cut at the leading edges and one status lamp. A door painted for a reason keeps that colour as the finish of the plate, so a staff door is still green and a visiting door still maroon; a wooden one becomes steel |
+| Cell doors | Each bar is a machined mullion, lit down its middle and shaded at both edges, braced across once and set in a graphite rail with a lock block. The openings stay open and the colour that grades a door stays on it |
+| Drains | A milled steel collar round a sunken well, with every hole the game drilled re-cut with depth |
 | Displays the game drew: monitor walls, arcade and machine screens | Lit in their own colour, with scanlines |
 | Built floors in grey: concrete, tiles, paving, ceramic, checkered, hexagonal, triangular | A true neutral at the same brightness; concrete, concrete tiles and paving stone get a lit top edge and a shaded bottom edge, so each slab reads as a panel |
 | Built floors in brown: wood, dark wood, laminate, reclaimed brick, mosaic, iron | Titanium composite with the boards, bricks and pattern kept, and each one as dark or light as it was |
@@ -32,6 +34,12 @@ Laid on thin it is a marking, the cross on a first aid kit or the label on a
 bag, and stays. Doors and gates named for a colour keep all of it however wide
 the band, because the colour is what says who may use them, and so do bars,
 fences, traffic lights and arrows.
+
+Three doors are left as the game drew them, because a steel plate would be
+worse than what is there. The keycard door is already the future. The
+ornamental gates and the mesh fence gates are openwork, and a solid plate
+would fill them in. The secret door is meant to pass for a bookshelf, so it
+goes on being a bookshelf, in titanium like every other shelf.
 
 Nothing is made darker than the game drew it, and nothing is drawn over an
 object: no outlines, no indicator rows, no glow. People, animals, plants, food,

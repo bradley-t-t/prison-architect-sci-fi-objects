@@ -42,7 +42,7 @@ ACCENT_ORDER = list(ACCENTS)
 # the outline, the size and where the light falls, and everything inside the
 # outline is drawn again. Because it works from the outline it holds for every
 # view of an object and on every sheet.
-REMAKES = ("none", "pod", "slab", "console", "sanitary", "rack", "core", "crate", "bulkhead", "seat", "emitter", "vehicle", "glass", "tray", "paintdoor", "fixture", "surface", "hob", "bars")
+REMAKES = ("none", "pod", "slab", "console", "sanitary", "rack", "core", "crate", "bulkhead", "seat", "emitter", "vehicle", "glass", "tray", "paintdoor", "fixture", "surface", "hob", "bars", "portal", "intake")
 WHITE = [(0.00, (40, 41, 44)), (0.45, (150, 152, 156)), (0.80, (226, 227, 230)), (1.00, (250, 250, 251))]
 
 
@@ -50,7 +50,7 @@ def _shade(colour, lum, lo=0.55, hi=1.25):
     return np.clip(np.asarray(colour, float)[None, :] * (lo + (hi - lo) * lum[:, None]), 0, 255)
 
 
-def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None):
+def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None, coded=None):
     """Redraws every object whose kind has a remake. Returns where it drew."""
     done = np.zeros(solid.shape, bool)
     lab, n = nd.label(solid & (arche > 0))
@@ -220,13 +220,134 @@ def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None):
                 px[disc & (np.abs(r - 0.60) < 1.5 / min(hh, ww))] = np.array([255, 122, 64.0])
                 px[disc & (np.abs(r - 0.28) < 1.2 / min(hh, ww))] = np.array([120, 58, 34.0])
         elif kind == "bars":
-            # A cell door. Bars in polished steel, the wooden frame in graphite,
-            # and the colour band untouched.
+            # A cell door. Every bar the game drew flat becomes a machined steel
+            # mullion, lit down its centre and shaded at both edges, braced across
+            # once and set in a graphite frame. The colour band that grades a door
+            # stays, and so do the openings, so you can still see into the cell.
             h_, s_, v_ = hsv(rgb_in[box])
             bar = m & (s_ < 0.20) & (l > 0.45)
-            px[bar] = ramp(STEEL, np.clip(0.5 + (l - 0.62) * 2.0, 0, 1)[bar])
-            frame = m & (h_ >= 8) & (h_ <= 50) & (s_ > 0.25) & (v_ < 0.50)
+            # A bar is round, and its own distance transform is where its middle
+            # is, so one expression shades it whichever way the door is turned.
+            bd = np.minimum(nd.distance_transform_edt(bar), 3.0) / 3.0
+            px[bar] = ramp(STEEL, np.clip(0.30 + 0.34 * l + 0.30 * bd, 0, 1)[bar])
+            rows, cols = ys.max() - ys.min() + 1, xs.max() - xs.min() + 1
+            wide = cols >= rows
+            lat = (yy - ys.min()) if wide else (xx - xs.min())
+            reach = (rows if wide else cols) - 1
+            brace = bar & (np.abs(lat - 0.62 * reach) < 1.2)
+            px[brace] = ramp(STEEL, np.clip(0.62 + 0.24 * l, 0, 1)[brace])
+            px[brace & (np.abs(lat - 0.62 * reach) >= 0.7)] *= 0.62
+            # The band round the bars is either the colour that grades a door or
+            # the wood the game framed it in, and the two do not overlap: the
+            # grades are vivid or yellow, the wood is a dull brown at hue 27.
+            warm_frame = m & (h_ >= 8) & (h_ <= 50) & (s_ > 0.16)
+            frame = warm_frame & (s_ < 0.45) & (h_ < 42)
             px[frame] = ramp(PANEL, np.clip(0.25 + 1.2 * l, 0, 1)[frame])
+            # The bars sit in a rail rather than in a beam: the frame is cut back
+            # to a shadow line where they meet it, and bolted at intervals.
+            if bar.any():
+                ends = nd.binary_dilation(bar, iterations=1) & ~bar & m
+                px[ends] = np.clip(px[ends] * 0.55, 0, 255)
+                rail = nd.binary_dilation(bar, iterations=3) & ~nd.binary_dilation(bar, iterations=1) & m
+                bolt = rail & ((xx + yy) % 8 < 1)
+                px[bolt] = np.clip(px[bolt] * 1.9, 0, 255)
+            # the lock the game drew: a graphite block with one lamp in it
+            lockish = m & ~bar & (d >= 2.6) & (l < 0.52)
+            locks, count = nd.label(nd.binary_opening(lockish, iterations=1))
+            for j, sl in enumerate(nd.find_objects(locks), 1):
+                blk = locks == j
+                if blk.sum() < 18 or blk.sum() > 260:
+                    continue
+                px[blk] = ramp(PANEL, np.clip(0.30 + 0.7 * l, 0, 1)[blk])
+                cy, cx = (sl[0].start + sl[0].stop - 1) / 2, (sl[1].start + sl[1].stop - 1) / 2
+                px[blk & (np.hypot(yy - cy, xx - cx) < 1.3)] = np.clip(tint * 0.55 + 110, 0, 255)
+        elif kind == "portal":
+            # A powered door. The leaf the game drew becomes a two-leaf pressure
+            # door: one anodised plate, a seam down the middle where the leaves
+            # meet, a recessed panel in each, chevrons at the leading edges and a
+            # status lamp. A door's colour is what it means, so the plate keeps it.
+            rows, cols = ys.max() - ys.min() + 1, xs.max() - xs.min() + 1
+            wide = cols >= rows
+            run = (xx - xs.min()) if wide else (yy - ys.min())
+            lat = (yy - ys.min()) if wide else (xx - xs.min())
+            span, reach = (cols if wide else rows) - 1, (rows if wide else cols) - 1
+            h_, s_, v_ = hsv(rgb_in[box])
+            # A door is either painted for a reason or made of wood, and one
+            # look at the whole leaf tells which. Every wooden door the game
+            # draws sits between hue 8 and 45; every door whose colour carries a
+            # meaning is either outside that band, like a green staff door or a
+            # maroon visiting door, or is named for its colour. Wood becomes
+            # steel. Paint stays, as the anodised finish of the plate.
+            paint = m & (s_ > 0.22) & (v_ > 0.18)
+            plate = STEEL
+            if paint.sum() > 0.10 * m.sum():
+                hue = float(np.median(h_[paint]))
+                named = coded is not None and coded[box][paint].mean() > 0.5
+                if named or not 8.0 <= hue <= 45.0:
+                    own = np.clip(rgb_in[box][paint].mean(0) * 255, 12, 255)
+                    plate = [(0.00, tuple(own * 0.16)), (0.34, tuple(own * 0.56)),
+                             (0.72, tuple(np.clip(own * 1.04, 0, 255))),
+                             (1.00, tuple(np.clip(own * 0.42 + 214, 0, 255)))]
+            soft = nd.gaussian_filter(np.where(m, l, float(l[m].mean())), 2.0)
+            px[m] = ramp(plate, np.clip(0.34 + 0.50 * soft, 0, 1)[m])
+            jamb = m & (d < 2.0)
+            px[jamb] = ramp(PANEL, np.clip(0.22 + 0.55 * l, 0, 1)[jamb])
+            leaf = m & (d >= 2.0)
+            gap = np.abs(run - span / 2.0)
+            # a recessed panel in each leaf, lit along its top and shaded below
+            inset = leaf & (d >= 4.2) & (gap > 0.09 * span)
+            px[inset] = np.clip(px[inset] * 0.86, 0, 255)
+            for axis, step, k in ((0, 1, 1.30), (0, -1, 0.74), (1, 1, 1.16), (1, -1, 0.82)):
+                lip = inset & ~np.roll(inset, step, axis=axis)
+                px[lip] = np.clip(px[lip] * k, 0, 255)
+            # the seam: a milled gap with a lit lip on each side of it
+            px[leaf & (gap <= 0.9)] = ramp(PANEL, np.full(int((leaf & (gap <= 0.9)).sum()), 0.16))
+            lip = leaf & (gap > 0.9) & (gap <= 2.1)
+            px[lip] = np.clip(px[lip] * 1.28, 0, 255)
+            # chevrons on the leading edge of each leaf, cut into the plate
+            chev = (leaf & (gap >= 3.0) & (gap <= 8.0) & (np.abs(lat - 0.5 * reach) < 0.30 * reach)
+                    & (((gap + np.abs(lat - 0.5 * reach)) % 5) < 2))
+            px[chev] = np.clip(px[chev] * 0.74, 0, 255)
+            # one status lamp, set into the plate near the hinge end
+            lamp = leaf & (np.abs(run - 0.90 * span) < 1.4) & (np.abs(lat - 0.30 * reach) < 1.4)
+            px[lamp] = np.clip(tint * 0.5 + 118, 0, 255)
+            # a small vivid mark, such as the aerial that says a door is remote,
+            # is what the door is for and is put back over the new plate
+            mark = nd.binary_opening(m & (s_ > 0.45) & (v_ > 0.35), iterations=1)
+            spots, count = nd.label(mark)
+            # A symbol is one compact shape. Rust, grain and wear are many small
+            # scattered ones, so a door speckled with them is carrying no symbol.
+            keep_marks = []
+            for j, sl in enumerate(nd.find_objects(spots), 1):
+                one = spots == j
+                area = one.sum()
+                if 6 <= area <= 220 and area >= 0.55 * (sl[0].stop - sl[0].start) * (sl[1].stop - sl[1].start):
+                    keep_marks.append(one)
+            if len(keep_marks) <= 3:
+                for one in keep_marks:
+                    px[one] = rgb_in[box][one] * 255
+        elif kind == "intake":
+            # A floor drain: a milled steel collar round a sunken well, the grille
+            # across it cut as slats with a lit edge on each, so it reads as
+            # something water falls into rather than a plate lying on the floor.
+            # The grain of whatever the game made the cover from is not the
+            # metal's, so the shading is smoothed before the steel is laid on it.
+            soft = nd.gaussian_filter(np.where(m, l, float(l[m].mean())), 2.5)
+            px[m] = ramp(STEEL, np.clip(0.54 + 0.36 * soft, 0, 1)[m])
+            well = m & (d >= 3.0)
+            px[well] = ramp(STEEL, np.clip(0.50 + 0.26 * soft, 0, 1)[well])
+            # The game already drilled the grille. Each hole it drew is re-cut as
+            # a hole with depth: dark at the bottom, lit on the near rim.
+            if well.any():
+                # the holes are read off the sharp picture, because smoothing closes
+                # the small ones, and only the metal round them is laid on smoothly
+                hole = well & (l < float(np.median(l[well])) * 0.92)
+                px[hole] = np.array([18, 19, 22.0])
+                px[hole & ~np.roll(hole, 1, axis=0)] = np.array([12, 13, 15.0])
+                near = hole & ~np.roll(hole, -1, axis=0)
+                px[near] = np.clip(px[near] + 52, 0, 255)
+            rim = m & (d >= 2.0) & (d < 3.0)
+            px[rim] = ramp(STEEL, np.clip(0.76 + 0.2 * l, 0, 1)[rim])
         elif kind == "console":
             # Everything the base pass made of the object stays. The one addition
             # is power: a display the game drew, vivid green or cyan or the paler
@@ -367,7 +488,7 @@ def reskin(img, mask=None, strips=True, no_strip=None, accent=None, style=None, 
     if arche is not None and accent is not None:
         keep_out = ~mask if mask is not None else np.zeros(solid.shape, bool)
         dist = nd.distance_transform_edt(solid)
-        remade = remake(out, lum, solid & ~keep_out, dist, arche, accent, rgb, owner)
+        remade = remake(out, lum, solid & ~keep_out, dist, arche, accent, rgb, owner, no_strip)
         # an outline stays an outline
         dark = solid & (lum < 0.13)
         out[dark & remade] = ramp(PANEL, lum[dark & remade])

@@ -43,6 +43,9 @@ KEEP = re.compile(
 # strip has no flat panel to sit on.
 NO_STRIP = re.compile(r"^(d_)?(JailDoor|JailBars|SolitaryDoor|RoadGate|RoadBarrier|Fence|BarbedWire|Pipe|Drain)", re.I)
 
+# Sprites NO_STRIP protects that are nonetheless drawn by hand here.
+HAND = re.compile(r"^(d_)?(JailDoor|SolitaryDoor|Drain|WoodDrain|Fence\w*Gate)")
+
 # Objects whose colour is their meaning: which staff may use a door, which remote opens it.
 PAINTED = re.compile(r"(Door|Gate)\w*(Red|Blue|Orange|Yellow|White|Black|Maroon|Grey|Green)|(Red|Blue|Orange|Yellow)Door|Light(Red|Green)|TrafficLight|Arrow")
 
@@ -70,6 +73,17 @@ REMADE = (
     ("surface", r"^(Table|TableSmall|Bench|BenchFullRotate|BenchSmallFullRotate|SmallBench|SmallTable|ServingTable|SmallServingTable)$"),
     ("hob", r"^Cooker$"),
     ("bars", r"^JailDoor\w*$"),
+    ("intake", r"^(Drain|WoodDrain)$"),
+    # every door and prison gate that swings or slides in a wall. The machine
+    # doors of an appliance, a door mat and the road gate are not doors here.
+    ("portal", r"^(Door|DoubleDoor|StaffDoor|DoubleStaffDoor|Staff(Blue|Orange|Red)Door"
+               r"|DoubleStaffDoor(Blue|Orange|Red)|SolitaryDoor|RemoteDoor"
+               r"|RemoteDoor(Black|Maroon|Orange|Red|White|Yellow)|SecureDoor"
+               r"|VisitorDoor|VisitorDoubleDoor"
+               r"|HouseDoor|SwollenDoor|RustyDoor|RustyDoorLarge|BarnDoor)$"),
+    # The keycard door is already the future, the ornamental gates and the mesh
+    # fence gates are openwork, and a two-leaf plate is wrong for all of them.
+    # The secret door is meant to pass for a bookshelf, so it stays one.
     ("none", r"GunRack|DumbbellRack|ShopShelfGoods|DoorMat|RoadGatePosts|LightningRod|Lighter|BoatDock|HorizontalBridge|Rotor|HeliInside|BoxingRing|CrateLabel|Sign$"),
     ("console", r"DoorControl|DoorServo|DoorTimer|MachineDoor|CabinetDoor|PhoneBooth|VideoCallBooth"),
     ("tray", r"MorgueSlab|Stretcher"),
@@ -118,7 +132,7 @@ def trim_maps(size, bank, drawn=None):
         return (next((i for i, rx in PURPOSE if rx.search(base)), 0),
                 zlib.crc32(base.encode()) % 4,
                 1 if NO_STRIP.match(name) or PAINTED.search(base) else 0,
-                next((i for i, rx in REMADE if rx.search(base)), 0) if (not NO_STRIP.match(name) or re.match(r"JailDoor", base)) else 0,
+                next((i for i, rx in REMADE if rx.search(base)), 0) if (not NO_STRIP.match(name) or HAND.match(base)) else 0,
                 1 if KEEP.match(name) else 0)
 
     def write(rect, vals, far=0):
