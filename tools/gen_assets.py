@@ -35,13 +35,16 @@ KEEP = re.compile(
     r"|Fire$|StrikeFire|Food|StaffFood|Ingredient|StackIngredients|StackMeals|Meal|Garbage|Rubble"
     r"|Booze|Cigs|BagOfDrugs|Poison|Pills|Needle|Alert|Powered|NoEntry|EscapeIcon|CrookedMarker"
     r"|WaterIcon|WaterOffIcon|Wave$|DoorLockedOpen|Light$"
-    r"|Hand(?!Dryer)|Face|Head|Body|Tattoo(?!Removal)|Female|OldMale|OldFemale|Male[A-Z]|\w*Warden$|Sniper\d|ElectricalSkeletal|Rat_|RobotDogDoo|RobotEyes|SignLetter|SignNumber|Stack(?:Books|Mail|Meal|Food|Plates|PrisonerLetter|ShopGoods)|ShopGoods|Books(?!helf)|FountainSpray|OutdoorSprinklerSpray|DamageCable_Spark|Ornamental_|MoreContraband|SubsidenceDamageAlert|Mac10|ChainsawWeapon|BarbedWireBat|FirstAidBackpack|SafetyGoggles|DogLeash|DogBowl|Bandana|RedFace|PoppingVein|DogPaw|RankInsignia|Photo"
+    r"|PestControl\d|Hand(?!Dryer)|Face|Head|Body|Tattoo(?!Removal)|Female|OldMale|OldFemale|Male[A-Z]|\w*Warden$|Sniper\d|ElectricalSkeletal|Rat_|RobotDogDoo|RobotEyes|SignLetter|SignNumber|Stack(?:Books|Mail|Meal|Food|Plates|PrisonerLetter|ShopGoods)|ShopGoods|Books(?!helf)|FountainSpray|OutdoorSprinklerSpray|DamageCable_Spark|Ornamental_|MoreContraband|SubsidenceDamageAlert|Mac10|ChainsawWeapon|BarbedWireBat|FirstAidBackpack|SafetyGoggles|DogLeash|DogBowl|Bandana|RedFace|PoppingVein|DogPaw|RankInsignia|Photo"
     r"|PrisonUniform|StackPrisonUniform|GuardUniform|StabVest|Banner|StrikePlacard|Rat$|Dog$|GuardDog|Cat$|Bird|Chicken|Cow$|Pig$|Accountant|Actor|Warden|AnimalTherapist|Anthony|ArmedGuard|Avatar|Benedict|BountyHunter|CameraMan|Ceo|Chef|Chief$|Detective|Doctor|DogHandler|Edward|EliteOp\d*$|Farmer|Fireman|Foreman|Gardener|Guard\d*$|GuardArmour|Guard(?!Locker|Tower)[A-Z][a-z]+(Digging|Sitting|Sleeping)?$|GymInstructor|Heller|Henchman|Hostage|Hurst|InsaneInmate|Janitor|Keane|Kerry|Lawyer|Mac$|Morgan|Negotiator|NewsReporter|Nico|Orderly|PalermoDaughter|Paramedic(?!sHeli)|Parole|Priest|Prisoner(?!Bus)|Psychiatrist|Repairman|RiotGuard|SecurityGuard|Shrink|Sniper$|Soldier|Sonny|Teacher|TheDon|Therapy|TruckDriver|Tux|Waterman|Workman|Wrinkle|Zombie|Dummy|Skeletal|FrozenCharacter|HybridBody|Baked|Raw|Flour|Barley|Cereal|Fig|MixedFruit|Dough$|Cake|D11Food|D11Ingredient|D11Stack|Restaurant|Drink$|Cup$|Plate|HayBale|Fertilizer|BloodSplatter|DogDoo|RatDroppings|SpiderWeb|Ivy|Fern|BorderPlant|Topiary|WillowTree|KayuMalam|BareTree|FallenTree|Ebony|\w*Icon$|Satisfaction|Marker|Graffiti|LoveLetter|Mail(?!Box)|Newspaper|PrisonerLetter|Book$|GameBible|Painting|Canvas|Rorschach|Ak47|AssaultRifle|Axe|Crowbar|Drill|Fork|Gun$|Hammer|Knife|Lighter|Rifle|Saw$|Scissors|Screwdriver|Sheers|Shotgun|Spade|Spoon|Spatula|Whisk|RollingPin|Trowel|Rake|Mop|Tazer|StunBaton|Club|Baton|Keycard$|JailKey|MobilePhone|Medicine$|MoneyBag|GoldPocket|PianoWire|Rope$|ClimbingRope|WoodPickAxe|WoodenSpoon|Stick$|Modified|BatteringRam|RiotShield|Shackle|StraitJacket|TrackingBelt|PaperDragon|PaperLantern|Couplet|JackOLantern|PinkFlamingo|GardenGnome|MooseHead|BirthdayPresent|Gravestone|Tombstone|gravestone|ChurchStatue|OxStatue|WardenStatue|StoneWaterSpout|HeliShadow|Nothing$|Connection|Concrete$|Brick$|Wood$|SheetMetal$|Girder$)",
     re.I)
 
 # Sprites that change colour but carry no light strip: bars and mesh, where a
 # strip has no flat panel to sit on.
 NO_STRIP = re.compile(r"^(d_)?(JailDoor|JailBars|SolitaryDoor|RoadGate|RoadBarrier|Fence|BarbedWire|Pipe|Drain)", re.I)
+
+# Objects whose colour is their meaning: which staff may use a door, which remote opens it.
+PAINTED = re.compile(r"(Door|Gate)\w*(Red|Blue|Orange|Yellow|White|Black|Maroon|Grey|Green)|(Red|Blue|Orange|Yellow)Door|Light(Red|Green)|TrafficLight|Arrow")
 
 # Cells of the main sheet that hold signs no sprite bank names.
 KEEP_CELLS = {"objects.png": ((35, 0, 4, 14), (0, 2, 2, 2))}
@@ -64,23 +67,13 @@ PURPOSE = tuple((skin.ACCENT_ORDER.index(k), re.compile(v)) for k, v in PURPOSE)
 REMADE = (
     ("none", r"GunRack|DumbbellRack|ShopShelfGoods|DoorMat|RoadGatePosts|LightningRod|Lighter|BoatDock|HorizontalBridge|Rotor|HeliInside|BoxingRing|CrateLabel|Sign$"),
     ("console", r"DoorControl|DoorServo|DoorTimer|MachineDoor|CabinetDoor|PhoneBooth|VideoCallBooth"),
-    ("vehicle", r"HeliDoor"),
-    ("core", r"ElectricChair"),
-    ("sanitary", r"Toilet|Sink|Shower|Bath|Basin|Urinal|DrinkingFountain|WaterCooler|Fountain$"),
-    ("seat", r"Sofa|Couch|Chair|Stool|DiningBooth|Bleachers|Pew"),
-    ("pod", r"^Bed|Bunk|Cot$|Stretcher|MorgueSlab|Mattress|[a-z]Bed$"),
-    ("glass", r"Window|VisitationSecure|Mirror|cinemaScreen|Blackboard|Flipboard"),
-    ("bulkhead", r"Door|Gate$|Gate[A-Z]|Checkpoint"),
-    ("emitter", r"^Light|Lamp|WallLight|FloodLight|StreetLight|Chandelier|Candelabra|Lantern|StatusLight|SearchLightBulb|Torch$|TrafficLight"),
-    ("vehicle", r"Truck|Van$|Car\d?$|Bus$|Ambulance|FireEngine|Bulldozer|Heli$|Heli[A-Z]|[a-z]Heli$|Boat|Vehicle|Trike"),
-    ("rack", r"Bookshel|Shelf|Shelves|Rack|Library|Radiator"),
-    ("core", r"Generator|Capacitor|Pump|Boiler|PowerStation|Reactor|Transformer|WaterStation|Battery|Solar|Turbine|^Fan"),
-    ("crate", r"^Bin|Bin$|Box$|^Box|Crate|Basket|Pallet|Barrel|Drum"),
+    ("tray", r"MorgueSlab|Stretcher"),
+    ("console", r"BedsideCab"),
+    ("pod", r"^Bed$|^SuperiorBed$|^BunkBed$|^DoubleBed$|^MedicalBed$"),
     ("console", r"Cooker|Fridge|Freezer|Tv|TV|Phone|Arcade|Vending|Machine|Computer|Cabinet|Filing|Washer|Dryer|Microwave|Monitor|Control"
                 r"|Terminal|Radio|Locker|Scanner|Detector|Till|Oven|Dispenser|Jukebox|Treadmill|WorkshopSaw|WorkshopPress|DoughMixer"
                 r"|AutoHarvester|AutoGatherer|AutoScythe|Cctv|Router|PASystem|SonicDeterrent|Switch|PowerExportMeter|EEG|cinemaProjector"
                 r"|FireAlarm|WeatherAntenna|Boombox|FirstAidStation|Cupboard|ChestOfDrawers|Hob$"),
-    ("slab", r"Table|Bench|Desk|Altar|Counter|Lectern|Worktop|IroningBoard|GymMat|PlayMat|PrayerMat|PressurePad"),
 )
 REMADE = tuple((skin.REMAKES.index(k), re.compile(v)) for k, v in REMADE)
 
@@ -107,30 +100,38 @@ def trim_maps(size, bank, drawn=None):
     accent, style, bare, arche, kept = (np.zeros(shape, np.uint8) for _ in range(5))
     owner = np.zeros(shape, np.int32)     # which picture a pixel belongs to: sprites that touch stay apart
     serial = [0]
+    gap = np.full(shape, 9999, np.int32)   # how far each claimed pixel sits from the sprite that claimed it
     found = [s for s in sprites(bank) if s[1] * CELL < size[0] and s[2] * CELL < size[1]]
-    found.sort(key=lambda f: "Toolbar" not in f[0])
+    # Toolbar pictures and icons are often a crop of the object itself, so they go
+    # down first and the object they were cut from has the last word.
+    found.sort(key=lambda f: not ("Toolbar" in f[0] or f[0].endswith("Icon")))
 
     def values(name):
         base = re.sub(r"^(d_)?", "", name)
         return (next((i for i, rx in PURPOSE if rx.search(base)), 0),
                 zlib.crc32(base.encode()) % 4,
-                1 if NO_STRIP.match(name) else 0,
+                1 if NO_STRIP.match(name) or PAINTED.search(base) else 0,
                 0 if NO_STRIP.match(name) else next((i for i, rx in REMADE if rx.search(base)), 0),
                 1 if KEEP.match(name) else 0)
 
-    def write(rect, vals):
+    def write(rect, vals, far=0):
+        """far is how many cells the rectangle sits from its sprite. A facing's
+        place is predicted, and about one in ten predictions is wrong, so where
+        two sprites claim the same ground the nearer one keeps it."""
         x, y, w, h = rect
         x0, y0 = max(0, x * CELL), max(0, y * CELL)
         x1, y1 = min(size[0], (x + w) * CELL), min(size[1], (y + h) * CELL)
         if x1 > x0 and y1 > y0:
+            win = gap[y0:y1, x0:x1] >= far
             for m, v in zip((accent, style, bare, arche, kept), vals):
-                m[y0:y1, x0:x1] = v
+                m[y0:y1, x0:x1][win] = v
             serial[0] += 1
-            owner[y0:y1, x0:x1] = serial[0]
+            owner[y0:y1, x0:x1][win] = serial[0]
+            gap[y0:y1, x0:x1][win] = far
 
     for name, x, y, w, h, rot in found:
         for rect in view_rects(x, y, w, h, rot):
-            write(rect, values(name))
+            write(rect, values(name), far=max(1, rect[0] - x))
     for name, x, y, w, h, rot in found:
         write((x, y, w, h), values(name))
     # A kept sprite's other pictures are not always where its rotate type puts
@@ -275,8 +276,8 @@ def main():
     for sheet, bank in SHEETS:
         img = Image.open(os.path.join(game, sheet)).convert("RGBA")
         accent, style, bare, arche, kept, owner = trim_maps(img.size, os.path.join(game, bank), np.array(img))
-        keep = kept | named_mask(img.size, os.path.join(game, bank), KEEP, KEEP_CELLS.get(sheet, ()))
-        done = skin.reskin(img, mask=~keep, no_strip=bare, accent=accent, style=style, arche=arche, owner=owner)
+        keep = kept | named_mask(img.size, os.path.join(game, bank), re.compile(r"(?!)"), KEEP_CELLS.get(sheet, ()))
+        done = skin.reskin(img, mask=~keep, strips=False, no_strip=bare, accent=accent, style=style, arche=arche, owner=owner)
         done.save(os.path.join(out, sheet), optimize=True)
         if sheet == "objects.png":
             card_art(done, os.path.join(game, bank)).save(os.path.join(ROOT, "tools", "card-art.png"), optimize=True)

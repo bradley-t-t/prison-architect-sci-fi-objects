@@ -42,8 +42,8 @@ ACCENT_ORDER = list(ACCENTS)
 # the outline, the size and where the light falls, and everything inside the
 # outline is drawn again. Because it works from the outline it holds for every
 # view of an object and on every sheet.
-REMAKES = ("none", "pod", "slab", "console", "sanitary", "rack", "core", "crate", "bulkhead", "seat", "emitter", "vehicle", "glass")
-WHITE = [(0.00, (26, 36, 52)), (0.45, (132, 154, 182)), (0.80, (214, 230, 244)), (1.00, (246, 252, 255))]
+REMAKES = ("none", "pod", "slab", "console", "sanitary", "rack", "core", "crate", "bulkhead", "seat", "emitter", "vehicle", "glass", "tray", "paintdoor")
+WHITE = [(0.00, (40, 41, 44)), (0.45, (150, 152, 156)), (0.80, (226, 227, 230)), (1.00, (250, 250, 251))]
 
 
 def _shade(colour, lum, lo=0.55, hi=1.25):
@@ -80,52 +80,81 @@ def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None):
         deep = m & (d >= 5)
         rim = m & (d >= 3.2) & (d < 5)
 
+        if kind in ("pod", "tray"):
+            # Both are drawn along the object's own length, head first. The head
+            # is the end the game drew brighter: the pillow, or the head block.
+            rows, cols = ys.max() - ys.min() + 1, xs.max() - xs.min() + 1
+            tall = rows >= cols
+            along = (yy - ys.min()) / max(1, rows - 1) if tall else (xx - xs.min()) / max(1, cols - 1)
+            cross = (xx - xs.min()) if tall else (yy - ys.min())
+            span = cols if tall else rows
+            vn = (cross - (span - 1) / 2) / max(1.0, (span - 1) / 2)
+            head, foot = m & (along < 0.3), m & (along > 0.7)
+            if head.any() and foot.any() and l[foot].mean() > l[head].mean():
+                along = 1 - along
+            U = along
         if kind == "pod":
-            # a shell with a glass canopy over whoever is in it
-            px[m] = ramp(PANEL, l[m] * 0.9)
-            t = (yy - ys.min()) / max(1, ys.max() - ys.min())
-            glass = np.stack([20 + 50 * t, 70 + 120 * t, 100 + 130 * t], -1)
-            streak = ((xx * 2 + yy) % 29 < 4) | ((xx * 2 + yy) % 29 == 9)
-            glass = glass * (0.75 + 0.5 * l[..., None]) + streak[..., None] * 38
-            px[deep] = np.clip(glass[deep], 0, 255)
-            px[rim] = tint * 0.9 + px[rim] * 0.1
-        elif kind == "slab":
-            # a dark work surface ruled into a grid, lit along its edge
-            px[m] = ramp(PANEL, l[m] * 0.8)
-            grid = ((xx % 8 == 0) | (yy % 8 == 0)) & deep
-            px[deep] = ramp(PANEL, 0.18 + l[deep] * 0.35)
-            px[grid] = px[grid] * 0.6 + tint * 0.4
-            px[rim] = tint * 0.85 + px[rim] * 0.15
-        elif kind == "console":
-            # the game's casing, and everything dark and flat on it lit up as a
-            # display: a television's screen, a cooker's rings, a machine's slot
-            px[m] = ramp(PANEL, l[m])
-            # only a dark patch that is a minority of the casing reads as a
-            # display; an object that is dark all over keeps its casing
-            dark = m & (d >= 2.5) & (l < 0.30)
-            dark = nd.binary_opening(dark, iterations=1)
-            patches, found = nd.label(dark)
-            screen = np.zeros_like(dark)
-            budget = 0.8 * m.sum()      # the rectangle test below is what rejects artwork
-            areas = nd.sum(dark, patches, range(1, found + 1)) if found else []
-            slots = nd.find_objects(patches)
-            for idx in np.argsort(areas)[::-1]:
-                if areas[idx] < 120 or areas[idx] > budget:
-                    continue
-                # a display is a rectangle; a ragged blob is artwork
-                sy, sx = slots[idx]
-                if areas[idx] < 0.7 * (sy.stop - sy.start) * (sx.stop - sx.start):
-                    continue
-                screen |= patches == idx + 1
-                budget -= areas[idx]
-            # a patch the game drew bright and saturated is a display already lit
+            # a sleep capsule: white composite hull, graphite cradle, a segmented
+            # mattress lit from beneath by light tubes, a raised smoked lid along
+            # one side and a small console at the foot
             h_, s_, v_ = hsv(rgb_in[box])
-            # displays are drawn green, cyan or blue; orange and skin are people
-            # and hazard paint. Holes are closed, since a screen's pale
-            # highlights would otherwise break it into scraps.
-            # The game draws a display one of two ways: vivid green or cyan, or
-            # the paler blue of a monitor wall. The darkest rectangle on an
-            # object is usually its base, so darkness alone is never the test.
+            bedding_px = m & (s_ > 0.25) & (v_ > 0.3)
+            if bedding_px.sum() > 0.08 * m.sum():
+                own = (rgb_in[box][bedding_px] * 255).mean(0)
+                tint = np.clip(own * 1.25, 0, 255)
+            px[m] = ramp(WHITE, 0.50 + 0.40 * l[m])
+            px[m & (d < 2.2)] = ramp(PANEL, 0.22 + 0.2 * l[m & (d < 2.2)])
+            cradle = m & (d >= 5)
+            px[cradle] = ramp(PANEL, 0.22 + 0.25 * l[cradle])
+            bedding = m & (d >= 7) & (U > 0.05) & (U < 0.88)
+            curve = (1 - 0.20 * vn ** 2)[..., None]
+            foam = np.array([198, 200, 205.0]) * curve
+            px[bedding] = foam[bedding]
+            seam = bedding & ((U * 7.0) % 1.0 < 0.055)
+            px[seam] *= 0.80
+            tubes = bedding & (U > 0.27) & (U < 0.84) & (cross % 5 < 2)
+            ends = np.clip(np.minimum(U - 0.27, 0.84 - U) / 0.06, 0.35, 1.0)[..., None]
+            glow = (np.array([244, 246, 250.0]) * 0.86 + tint * 0.14) * curve * ends
+            px[tubes] = np.clip(glow[tubes], 0, 255)
+            socket = bedding & (((U > 0.255) & (U <= 0.27)) | ((U >= 0.84) & (U < 0.855)))
+            px[socket] = ramp(STEEL, 0.55 + 0.2 * l[socket])
+            rest = m & (d >= 7) & (U > 0.07) & (U < 0.215) & (np.abs(vn) < 0.62)
+            px[rest] = (np.array([246, 247, 249.0]) * (1 - 0.14 * vn ** 2)[..., None])[rest]
+            px[rest & ~nd.binary_erosion(rest, iterations=1)] *= 0.78
+            lid = m & (d >= 3) & (vn > 0.64)
+            glint = ((cross * 3 + (U * max(rows, cols)).astype(int)) % 23 < 3)
+            smoked = np.array([58, 61, 66.0])[None, None, :] + glint[..., None] * 34
+            px[lid] = smoked[lid]
+            px[lid & (vn <= 0.70)] = tint * 0.85
+            panel = m & (d >= 4) & (U >= 0.905)
+            px[panel] = ramp(PANEL, 0.30 + 0.2 * l[panel])
+            px[panel & (np.abs(vn) < 0.30) & (U > 0.925) & (U < 0.975)] = tint * 0.9
+            for at, lamp in ((-0.55, (96, 232, 140)), (-0.42, (255, 96, 96))):
+                px[panel & (np.abs(vn - at) < 0.05) & (U > 0.935) & (U < 0.965)] = lamp
+            px[m & (d >= 3.2) & (d < 4.2) & ~lid] = tint * 0.8
+        elif kind == "tray":
+            # An autopsy table. The sink, tap, grating and stains are the game's
+            # and all stay: only the material changes, to bright brushed steel,
+            # with a lip shadow and a lit edge added on top.
+            grain = (((cross * 7919) % 13) / 13.0 - 0.5) * 0.05
+            px[m] = ramp(STEEL, np.clip(0.34 + 0.62 * l + grain, 0, 1)[m])
+            h_, s_, v_ = hsv(rgb_in[box])
+            blood = m & (s_ > 0.40) & ((h_ < 20) | (h_ > 335))
+            px[blood] = np.clip(rgb_in[box][blood] * 255 * np.array([1.0, 0.55, 0.55]), 0, 255)
+            lip = m & (d >= 3.9) & (d < 4.9)
+            px[lip] *= 0.72
+            px[m & (d >= 3.0) & (d < 3.9)] = tint * 0.75
+        elif kind == "slab":
+            # a satin graphite top that keeps every mark the game drew on it
+            px[m] = ramp(PANEL, np.clip(0.30 + 0.55 * l, 0, 1)[m])
+            sheen = np.clip(1.10 - 0.25 * (yy - ys.min()) / max(1, ys.max() - ys.min()), 0.85, 1.10)[..., None]
+            px[deep] = np.clip(px[deep] * sheen[deep], 0, 255)
+            px[m & (d >= 3.2) & (d < 4.2)] = tint * 0.8
+        elif kind == "console":
+            # Everything the base pass made of the object stays. The one addition
+            # is power: a display the game drew, vivid green or cyan or the paler
+            # blue of a monitor wall, is lit in its own colour with scanlines.
+            h_, s_, v_ = hsv(rgb_in[box])
             vivid_px = (s_ > 0.45) & (v_ > 0.45) & (h_ >= 70) & (h_ <= 270)
             glass_px = (s_ >= 0.25) & (v_ >= 0.35) & (h_ >= 190) & (h_ <= 250)
             lit = m & (d >= 2) & (vivid_px | glass_px)
@@ -134,37 +163,13 @@ def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None):
             spot_boxes = nd.find_objects(spots)
             for j, area in enumerate(nd.sum(lit, spots, range(1, n_spots + 1)) if n_spots else [], 1):
                 sy, sx = spot_boxes[j - 1]
-                # vivid and close to a rectangle: dull paint and ragged art are neither
                 here = spots == j
                 vivid = s_[here].mean() >= 0.55 or glass_px[here].mean() >= 0.8
+                # vivid and close to a rectangle: dull paint and ragged art are neither
                 if area < 60 or not vivid or area < 0.75 * (sy.stop - sy.start) * (sx.stop - sx.start):
-                    lit[spots == j] = False
-            screen &= ~lit
-            # a powered display: brightest at its centre, with scanlines
-            if screen.any():
-                sd = nd.distance_transform_edt(screen)
-                glow = np.clip(sd / max(3.0, sd.max()), 0, 1)[..., None]
-                face = (np.array([14, 62, 92], float) + tint * 0.22) * (0.75 + 0.75 * glow)
-                px[screen] = np.clip(face[screen], 0, 255)
-                px[screen & (yy % 3 == 0)] *= 0.72
-            edge = screen & ~nd.binary_erosion(screen, iterations=1)
-            px[edge] = tint * 0.85
-            # a lit face keeps the game's own light and dark, so a wall of
-            # monitors is not one flat colour, and never washes out to white
-            face = tint * 0.45 + np.array([30, 150, 190.0])
-            px[lit] = np.clip(face[None, :] * (0.45 + 0.75 * l[lit][:, None]), 0, 235)
-            px[lit & (yy % 3 == 0)] *= 0.8
-            # buttons and indicator lamps stay the colour the game gave them.
-            # Only small patches count, so painted artwork does not come back.
-            keys = m & (s_ > 0.5) & (v_ > 0.5) & ~lit & ~screen
-            klab, kn = nd.label(keys)
-            if kn:
-                small = np.isin(klab, 1 + np.nonzero(nd.sum(keys, klab, range(1, kn + 1)) <= 40)[0])
-                px[small] = np.clip(rgb_in[box][small] * 255 * 1.15 + 10, 0, 255)
-            # one row of indicator lamps, low on the casing
-            row = int(ys.min() + 0.82 * (ys.max() - ys.min()))
-            lamps = m & (d >= 2) & ~screen & (yy >= row) & (yy < row + 2) & (xx % 6 < 2)
-            px[lamps] = np.where(((xx // 6) % 3 == 0)[lamps][:, None], np.array([255, 96, 96.0]), tint)
+                    lit[here] = False
+            px[lit] = np.clip(rgb_in[box][lit] * 255 * 1.22 + 14, 0, 250)
+            px[lit & (yy % 3 == 0)] *= 0.86
         elif kind == "sanitary":
             # bright composite, the one pale thing in a dark room, with lit water
             px[m] = ramp(WHITE, np.clip(l[m] * 1.08, 0, 1))
@@ -172,75 +177,40 @@ def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None):
             px[water] = _shade((70, 205, 255), l[water], 0.8, 1.6)
             px[m & (d >= 1.5) & (d < 2.6)] = px[m & (d >= 1.5) & (d < 2.6)] * 0.7 + tint * 0.3
         elif kind == "rack":
-            # a frame of data slats: what was a bright spine is a lit slat
-            px[m] = ramp(PANEL, l[m] * 0.9)
-            slat = deep & (yy % 5 < 3)
-            lit = slat & (l > 0.45) & (((xx // 4) + (yy // 5)) % 3 == 0)
-            px[slat] = _shade((34, 96, 118), l[slat], 0.6, 1.2)
-            px[lit] = _shade(tint, l[lit], 0.8, 1.2)
-        elif kind == "core":
-            # plant with a live core showing through its casing
-            px[m] = ramp(PANEL, l[m])
-            cy, cx = ys.mean(), xs.mean()
-            r = np.hypot(yy - cy, xx - cx)
-            reach = 0.32 * min(ys.max() - ys.min(), xs.max() - xs.min()) + 3
-            glow = np.clip(1 - r / reach, 0, 1)[..., None] ** 1.4
-            ring = (np.abs(r - reach * 0.55) < 0.8) | (np.abs(r - reach) < 0.8)
-            inside = m & (d >= 2.5)
-            px[inside] = px[inside] * (1 - 0.85 * glow[inside]) + np.array([255, 236, 190.0]) * 0.85 * glow[inside] * 0.5 + tint * 0.85 * glow[inside] * 0.5
-            px[inside & ring] = tint
-        elif kind == "crate":
-            # a sealed container with a hazard band and a lid lamp
-            px[m] = ramp(PANEL, l[m])
-            mid = (yy > ys.min() + 0.42 * (ys.max() - ys.min())) & (yy < ys.min() + 0.66 * (ys.max() - ys.min()))
-            band = m & (d >= 2.5) & mid
-            stripe = ((xx + yy) % 10 < 5)
-            px[band & stripe] = _shade((255, 214, 64), l[band & stripe], 0.7, 1.1)
-            px[band & ~stripe] = np.array([14, 16, 20.0])
-            lamp = m & (np.hypot(yy - (ys.min() + 5), xx - xs.mean()) < 2.2)
-            px[lamp] = tint
-        elif kind == "bulkhead":
-            # a plated door with a lit seam down its length
-            px[m] = ramp(PANEL, 0.15 + l[m] * 0.7)
-            tall = (ys.max() - ys.min()) >= (xs.max() - xs.min())
-            along = xx - xs.mean() if tall else yy - ys.mean()
-            seam = deep & (np.abs(along) < 1.2)
-            plate = deep & ((yy if tall else xx) % 12 == 0)
-            px[plate] = px[plate] * 0.55
-            px[seam] = tint
-            px[rim] = px[rim] * 0.55 + tint * 0.45
+            # the shelves and what is on them stay; bright spines become lit modules
+            px[m] = ramp(PANEL, np.clip(0.18 + 0.75 * l, 0, 1)[m])
+            spine = deep & (l > 0.62)
+            px[spine] = np.clip(tint * 0.35 + np.array([150, 152, 156.0]) * (0.5 + 0.6 * l[spine][:, None]), 0, 255)
         elif kind == "seat":
-            # a moulded shell with a lit cushion
-            px[m] = ramp(PANEL, l[m] * 0.85)
-            pad = m & (d >= 4)
-            px[pad] = _shade(tint * 0.55 + np.array([10, 30, 40.0]), l[pad], 0.5, 1.2)
+            # charcoal upholstery on a graphite frame, with one line of piping
+            px[m] = ramp(CLOTH, np.clip(0.15 + 0.85 * l, 0, 1)[m])
+            px[m & (d >= 3.2) & (d < 4.0)] = tint * 0.7
         elif kind == "emitter":
-            # a housing around a core of light
-            px[m] = ramp(PANEL, l[m])
-            r = np.hypot(yy - ys.mean(), xx - xs.mean())
-            reach = 0.45 * min(ys.max() - ys.min(), xs.max() - xs.min()) + 2
-            glow = np.clip(1 - r / reach, 0, 1)[..., None] ** 0.8
-            px[m] = px[m] * (1 - glow[m]) + (tint * 0.5 + np.array([255, 255, 255.0]) * 0.5) * glow[m]
+            # the housing stays as the base pass left it; only what the game drew
+            # bright, the bulb or the lens, is lit
+            bulb = m & (l > 0.70)
+            warm = tint * 0.25 + np.array([255, 250, 238.0]) * 0.75
+            px[bulb] = np.clip(warm[None, :] * (0.55 + 0.5 * l[bulb][:, None]), 0, 255)
         elif kind == "vehicle":
-            # a dark hull, lit glass and a running light round the body
-            px[m] = ramp(PANEL, l[m])
+            # livery, markings and lights stay; only the glass is lit
             h_, s_, v_ = hsv(rgb_in[box])
-            glass = m & (d >= 2) & (h_ > 170) & (h_ < 260) & (s_ > 0.15)
-            px[glass] = _shade((90, 210, 255), l[glass], 0.6, 1.4)
-            px[m & (d >= 2.2) & (d < 3.2)] = tint * 0.8
+            glazing = m & (d >= 2) & (h_ > 170) & (h_ < 260) & (s_ > 0.15) & (v_ > 0.3)
+            px[glazing] = _shade((150, 198, 222), l[glazing], 0.6, 1.3)
         elif kind == "glass":
-            # a pane of held light
-            px[m] = ramp(PANEL, l[m])
-            t = ((xx * 2 + yy) % 17 < 3)
+            # smoked glass in a graphite frame
+            px[m] = ramp(PANEL, np.clip(0.2 + 0.6 * l, 0, 1)[m])
             pane = m & (d >= 2.5)
-            px[pane] = np.clip(np.array([30, 120, 160.0]) * (0.7 + 0.7 * l[pane][:, None]) + t[pane][:, None] * 50, 0, 255)
-            px[m & (d >= 1.5) & (d < 2.5)] = tint
+            t = ((xx * 2 + yy) % 19 < 2)
+            px[pane] = np.clip(np.array([74, 80, 88.0]) * (0.75 + 0.6 * l[pane][:, None]) + t[pane][:, None] * 26, 0, 255)
+            px[m & (d >= 1.5) & (d < 2.5)] = tint * 0.75
         out[box] = px
         done[box] |= m
     return done
-PANEL = [(0.00, (14, 18, 26)), (0.35, (30, 38, 50)), (0.70, (52, 64, 82)), (1.00, (96, 114, 140))]
-CLOTH = [(0.00, (8, 26, 34)), (0.45, (20, 70, 88)), (0.80, (44, 124, 150)), (1.00, (120, 200, 222))]
-STEEL = [(0.00, (8, 11, 18)), (0.30, (36, 46, 62)), (0.65, (86, 104, 130)), (0.88, (150, 172, 200)), (1.00, (214, 232, 250))]
+PANEL = [(0.00, (15, 15, 17)), (0.35, (34, 35, 38)), (0.70, (62, 63, 67)), (1.00, (116, 118, 123))]
+# worktops and casework: a mid titanium, light enough that whatever sits on it still reads
+COMPOSITE = [(0.00, (22, 22, 25)), (0.40, (92, 94, 99)), (0.75, (168, 170, 175)), (1.00, (232, 233, 236))]
+CLOTH = [(0.00, (18, 18, 20)), (0.45, (52, 53, 57)), (0.80, (96, 98, 103)), (1.00, (168, 170, 176))]
+STEEL = [(0.00, (10, 10, 12)), (0.30, (46, 47, 51)), (0.65, (108, 110, 115)), (0.88, (176, 178, 184)), (1.00, (234, 235, 238))]
 
 
 def ramp(stops, t):
@@ -276,27 +246,45 @@ def reskin(img, mask=None, strips=True, no_strip=None, accent=None, style=None, 
     h, s, v = hsv(rgb)
     lum = rgb @ np.array([0.299, 0.587, 0.114])
     solid = alpha > 0.5
-    wood = solid & (h >= 12) & (h <= 62) & (s > 0.22) & (v > 0.18)
+    # A warm colour is one of two things. Laid on thick it is a material: a table
+    # top, a door, a crate. Laid on thin it is a marking: the band that says
+    # which jail door this is, a cross, a label, a spark. Materials change and
+    # markings stay, and thickness is what tells them apart.
+    warm = solid & (h >= 12) & (h <= 62) & (s > 0.22) & (v > 0.12)
+    # Decided a whole region at a time, by how thick it is at its thickest, so a
+    # door's thin bottom edge goes with the door and no scrap is left behind.
+    regions, count = nd.label(warm)
+    wood = np.zeros_like(warm)
+    if count:
+        thickest = nd.maximum(nd.distance_transform_edt(warm), regions, range(1, count + 1))
+        wood = np.isin(regions, 1 + np.nonzero(np.asarray(thickest) >= 5)[0])
+    # Bars, fences and doors named for a colour carry warm paint only as a
+    # marking, however wide the band, and keep it.
+    if no_strip is not None:
+        wood &= ~no_strip
     cloth = solid & (h > 62) & (h <= 170) & (s > 0.12) & (v > 0.15)
-    grey = solid & (s <= 0.22) & ~wood & ~cloth
+    grey = solid & (s <= 0.22) & ~warm & ~cloth
     blue = solid & (h > 170) & (h <= 270) & (s > 0.22)
-    red = solid & ((h < 12) | (h > 330)) & (s > 0.35)
 
     out = rgb * 255
-    # Each piece of wood keeps its own light and shade around the same middle
-    # grey, so a pale table and a dark desk come out as the same material.
+    # Each piece keeps its own light and shade around a light middle tone, so
+    # nothing comes out darker than the game drew it.
     lab, n = nd.label(wood)
     if n:
         idx = np.arange(1, n + 1)
         mean = np.zeros(n + 1)
         mean[1:] = nd.mean(lum, lab, idx)
-        t = 0.42 + (lum - mean[lab]) * 2.4
-        out[wood] = ramp(PANEL, t[wood])
-    out[cloth] = ramp(CLOTH, lum[cloth] ** 1.15)
-    out[grey] = ramp(STEEL, lum[grey] ** 1.1)
-    # neon up what is already blue or red
-    for m, tint in ((blue, np.array([0.55, 0.95, 1.25])), (red, np.array([1.2, 0.75, 0.85]))):
-        out[m] = np.clip(out[m] * tint + 10, 0, 255)
+        t = 0.62 + (lum - mean[lab]) * 1.5
+        out[wood] = ramp(COMPOSITE, t[wood])
+    # Greens and blues keep most of their colour and all of their brightness.
+    # Pale blue is ice, water or a lit screen, and is left exactly alone.
+    for fabric, strength in ((cloth, 0.70), (blue & (v <= 0.75), 0.60)):
+        grey_px = lum[fabric][:, None] * 255
+        out[fabric] = np.clip(grey_px + (rgb[fabric] * 255 - grey_px) * strength, 0, 255)
+    # Metal and paintwork that were already grey stay the brightness they were,
+    # brought to a true neutral with a little more contrast.
+    val = np.clip(0.5 + (lum[grey] - 0.5) * 1.10, 0, 1) * 255
+    out[grey] = np.stack([val, val, np.clip(val * 1.012, 0, 255)], -1)
 
     remade = np.zeros(solid.shape, bool)
     if arche is not None and accent is not None:
@@ -347,14 +335,11 @@ def reskin(img, mask=None, strips=True, no_strip=None, accent=None, style=None, 
             tint = np.array(ACCENTS[ACCENT_ORDER[int(accent[cy, cx])]], float) if accent is not None else STRIP
             ring = loop & here
             y0, y1, x0, x1 = box[0].start, box[0].stop, box[1].start, box[1].stop
-            if cut == 1:        # corner brackets
-                arm = max(6, min(y1 - y0, x1 - x0) // 4)
-                near_x = (xx < x0 + 5 + arm) | (xx >= x1 - 5 - arm)
-                near_y = (yy < y0 + 5 + arm) | (yy >= y1 - 5 - arm)
-                ring &= near_x & near_y
-            elif cut == 2:      # dashed loop
-                ring &= ((xx + yy) // 6) % 2 == 0
-            elif cut == 3:      # a pair of rails along the long side
+            # A surface with things on it has a ragged outline, and a line
+            # traced round that staggers. Only a clean rectangle carries one.
+            if sizes[lab - 1] < 0.90 * (y1 - y0) * (x1 - x0):
+                continue
+            if cut % 2 == 1:    # a pair of rails along the long side; otherwise a closed loop
                 if x1 - x0 >= y1 - y0:
                     ring &= (xx > x0 + 9) & (xx < x1 - 10)
                 else:
