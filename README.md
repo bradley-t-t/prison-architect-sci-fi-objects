@@ -15,6 +15,10 @@ object, price, room or rule is touched.
 | Pale blue: ice, water, a lit screen | Left exactly alone |
 | Beds, bunks, double and medical beds | A sleep capsule: composite hull, headrest, rows of light tubes, a raised smoked lid, a console at the foot, accented in the colour of the bed's own bedding |
 | The autopsy table | Brushed steel, with its sink, tap, grating and stains all kept |
+| Toilet, sink, shower head, kitchen sink | Clean white composite with the stains gone and every fitting kept; a toilet bowl is dark glass with one line of light round its rim |
+| Canteen table, bench, serving table and their small versions | One brushed steel sheet, the smears gone, with a panel joint every metre |
+| Cooker | Induction: each ring is a disc of black glass with a fine heat line, on cleaned steel |
+| Jail doors | Polished bars in a graphite frame, the colour band untouched |
 | Displays the game drew: monitor walls, arcade and machine screens | Lit in their own colour, with scanlines |
 
 ## What never changes
@@ -32,6 +36,17 @@ draws over things are left exactly as the game drew them. A kept sprite's other
 pictures are often unnamed in the sprite bank, so the generator also keeps any
 picture beside one that shares its colours. An icon cropped from an object
 follows that object.
+
+## Which pictures belong to an object
+
+A sprite bank names one picture of an object and the game finds the other
+facings by rotate type. Measured over all 233 sprites of rotate type 1, the
+second and third pictures resemble their sprite about nine times in ten, and the
+fourth only three times in ten, because the game mostly mirrors the side view
+and that ground belongs to a neighbour. So the fourth is claimed only when it
+matches the third. A small sprite lying inside another's picture and sharing its
+colours is a reused texture, the crate label being a square of the white canteen
+table, and follows its host.
 
 ## How it is built
 

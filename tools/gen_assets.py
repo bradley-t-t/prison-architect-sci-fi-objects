@@ -65,6 +65,11 @@ PURPOSE = tuple((skin.ACCENT_ORDER.index(k), re.compile(v)) for k, v in PURPOSE)
 # Which kinds of object are rebuilt rather than recoloured, by name. First
 # match wins. See skin.REMAKES.
 REMADE = (
+    # drawn by hand, one object at a time, from what the game's own sprite shows
+    ("fixture", r"^(Toilet|Sink|ShowerHead|KitchenSink)$"),
+    ("surface", r"^(Table|TableSmall|Bench|BenchFullRotate|BenchSmallFullRotate|SmallBench|SmallTable|ServingTable|SmallServingTable)$"),
+    ("hob", r"^Cooker$"),
+    ("bars", r"^JailDoor\w*$"),
     ("none", r"GunRack|DumbbellRack|ShopShelfGoods|DoorMat|RoadGatePosts|LightningRod|Lighter|BoatDock|HorizontalBridge|Rotor|HeliInside|BoxingRing|CrateLabel|Sign$"),
     ("console", r"DoorControl|DoorServo|DoorTimer|MachineDoor|CabinetDoor|PhoneBooth|VideoCallBooth"),
     ("tray", r"MorgueSlab|Stretcher"),
@@ -100,6 +105,7 @@ def trim_maps(size, bank, drawn=None):
     accent, style, bare, arche, kept = (np.zeros(shape, np.uint8) for _ in range(5))
     owner = np.zeros(shape, np.int32)     # which picture a pixel belongs to: sprites that touch stay apart
     serial = [0]
+    claimed = {}                           # owner id -> the rectangle that claimed it
     gap = np.full(shape, 9999, np.int32)   # how far each claimed pixel sits from the sprite that claimed it
     found = [s for s in sprites(bank) if s[1] * CELL < size[0] and s[2] * CELL < size[1]]
     # Toolbar pictures and icons are often a crop of the object itself, so they go
@@ -107,11 +113,12 @@ def trim_maps(size, bank, drawn=None):
     found.sort(key=lambda f: not ("Toolbar" in f[0] or f[0].endswith("Icon")))
 
     def values(name):
-        base = re.sub(r"^(d_)?", "", name)
+        # a toolbar picture or an icon is classed as the object it shows
+        base = re.sub(r"(_?Tool[Bb]ar|Icon)$", "", re.sub(r"^(d_)?", "", name))
         return (next((i for i, rx in PURPOSE if rx.search(base)), 0),
                 zlib.crc32(base.encode()) % 4,
                 1 if NO_STRIP.match(name) or PAINTED.search(base) else 0,
-                0 if NO_STRIP.match(name) else next((i for i, rx in REMADE if rx.search(base)), 0),
+                next((i for i, rx in REMADE if rx.search(base)), 0) if (not NO_STRIP.match(name) or re.match(r"JailDoor", base)) else 0,
                 1 if KEEP.match(name) else 0)
 
     def write(rect, vals, far=0):
@@ -127,12 +134,60 @@ def trim_maps(size, bank, drawn=None):
                 m[y0:y1, x0:x1][win] = v
             serial[0] += 1
             owner[y0:y1, x0:x1][win] = serial[0]
+            claimed[serial[0]] = rect
             gap[y0:y1, x0:x1][win] = far
 
+    def likeness_sub(small, host):
+        """A patch against the part of its host around it: are the patch's colours the host's?"""
+        x, y, w, h = small
+        block = drawn[y * CELL:(y + h) * CELL, x * CELL:(x + w) * CELL]
+        on = block[..., 3] > 127
+        if on.mean() < 0.5:
+            return 1.0          # mostly empty: something drawn in a gap, not a patch of the host
+        return likeness(small, host)
+
+    def likeness(rect_a, rect_b):
+        """How unlike two rectangles are, by colour: 0 the same, 1 nothing shared."""
+        hists, cover = [], []
+        for x, y, w, h in (rect_a, rect_b):
+            x0, y0, x1, y1 = max(0, x * CELL), max(0, y * CELL), min(size[0], (x + w) * CELL), min(size[1], (y + h) * CELL)
+            if x1 <= x0 or y1 <= y0:
+                return 1.0
+            block = drawn[y0:y1, x0:x1]
+            on = block[..., 3] > 127
+            if on.mean() < 0.03:
+                return 1.0
+            hist = np.histogramdd(block[..., :3][on], bins=(4, 4, 4), range=((0, 256),) * 3)[0].ravel()
+            hists.append(hist / hist.sum())
+            cover.append(float(on.mean()))
+        return 0.5 * float(np.abs(hists[0] - hists[1]).sum())
+
+    # Measured over all 233 sprites of rotate type 1: the second and third
+    # pictures resemble their sprite about nine times in ten, and the rest are
+    # real facings that differ, a television's back for one. The fourth does so
+    # only three times in ten, because the game mostly mirrors the side view and
+    # that ground belongs to a neighbour. So the fourth has to look the part.
     for name, x, y, w, h, rot in found:
-        for rect in view_rects(x, y, w, h, rot):
-            write(rect, values(name), far=max(1, rect[0] - x))
+        rects = view_rects(x, y, w, h, rot)
+        for k, rect in enumerate(rects):
+            # the fourth is the third mirrored, so it is judged against the third
+            fourth = rot == 1 and k == 2
+            if not fourth or drawn is None or likeness(rects[1], rect) <= 0.20:
+                write(rect, values(name), far=max(1, rect[0] - x))
     for name, x, y, w, h, rot in found:
+        # A sprite lying wholly inside a picture already claimed is one of two
+        # things. A toolbar picture, an icon, or a patch of the host reused as a
+        # texture - the crate label is a square of the white canteen table -
+        # shares the host's colours and follows it. A different sprite packed
+        # into a gap does not, and stays itself.
+        crop = re.search(r"(_?Tool[Bb]ar|Icon)$", name)
+        inside = owner[y * CELL:min(size[1], (y + h) * CELL), x * CELL:min(size[0], (x + w) * CELL)]
+        if inside.size and inside.min() == inside.max() and inside.min() > 0:
+            host = claimed[int(inside.min())]
+            reused = (not KEEP.match(name) and drawn is not None and w * h * 4 <= host[2] * host[3]
+                      and likeness_sub((x, y, w, h), host) <= 0.35)
+            if crop or reused:
+                continue
         write((x, y, w, h), values(name))
     # A kept sprite's other pictures are not always where its rotate type puts
     # them. They are unnamed and can sit on either side of it - a stack of meals is named at

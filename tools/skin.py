@@ -42,7 +42,7 @@ ACCENT_ORDER = list(ACCENTS)
 # the outline, the size and where the light falls, and everything inside the
 # outline is drawn again. Because it works from the outline it holds for every
 # view of an object and on every sheet.
-REMAKES = ("none", "pod", "slab", "console", "sanitary", "rack", "core", "crate", "bulkhead", "seat", "emitter", "vehicle", "glass", "tray", "paintdoor")
+REMAKES = ("none", "pod", "slab", "console", "sanitary", "rack", "core", "crate", "bulkhead", "seat", "emitter", "vehicle", "glass", "tray", "paintdoor", "fixture", "surface", "hob", "bars")
 WHITE = [(0.00, (40, 41, 44)), (0.45, (150, 152, 156)), (0.80, (226, 227, 230)), (1.00, (250, 250, 251))]
 
 
@@ -150,6 +150,83 @@ def remake(out, lum, solid, dist, arche, accent, rgb_in, owner=None):
             sheen = np.clip(1.10 - 0.25 * (yy - ys.min()) / max(1, ys.max() - ys.min()), 0.85, 1.10)[..., None]
             px[deep] = np.clip(px[deep] * sheen[deep], 0, 255)
             px[m & (d >= 3.2) & (d < 4.2)] = tint * 0.8
+        elif kind == "fixture":
+            # Wash fixtures. Porcelain comes out as clean white composite with the
+            # game's broad shading but none of its stains, the fittings as chrome,
+            # and a bowl as dark glass with one thin line of light round its rim.
+            h_, s_, v_ = hsv(rgb_in[box])
+            # A stain is warm and a fitting is neutral, so only warm pixels are
+            # smoothed away. Taps, basin lines, drains and drainer ridges are
+            # neutral grey and keep every pixel of their shading.
+            soft = nd.gaussian_filter(np.where(m, l, float(l[m].mean())), 2.5)
+            stain = m & (s_ > 0.10) & ((h_ < 70) | (h_ > 320))
+            tone = np.where(stain, np.maximum(soft, l), l)
+            shell = m & (tone > 0.55) & ((s_ < 0.30) | stain)
+            px[shell] = ramp(WHITE, np.clip(0.30 + 0.72 * tone, 0, 1)[shell])
+            chrome = m & (s_ < 0.18) & (l > 0.28) & (l <= 0.55)
+            px[chrome] = ramp(STEEL, np.clip(0.30 + 1.15 * (l - 0.28) / 0.27 * 0.6, 0, 1)[chrome])
+            pit = nd.binary_opening(m & (d >= 3) & (l < 0.48), iterations=1)
+            pits, count = nd.label(pit)
+            for j in range(1, count + 1):
+                bowl = pits == j
+                if bowl.sum() < 40:
+                    continue
+                bowl = nd.binary_fill_holes(nd.binary_closing(bowl, iterations=2)) & m
+                by, bx = np.nonzero(bowl)
+                depth = nd.distance_transform_edt(bowl)
+                glass = np.array([30, 34, 40.0])[None, :] + (depth[bowl] / max(1.0, depth.max()))[:, None] * np.array([26, 40, 52.0])
+                px[bowl] = glass
+                glint = bowl & (np.hypot(yy - (by.min() + 0.32 * (by.max() - by.min())), xx - (bx.min() + 0.36 * (bx.max() - bx.min()))) < 1.6)
+                px[glint] = np.array([210, 236, 246.0])
+                lip = nd.binary_dilation(bowl, iterations=2) & ~nd.binary_dilation(bowl, iterations=1) & m
+                px[lip] = np.array([150, 214, 236.0])
+        elif kind == "surface":
+            # Canteen tables, benches and serving counters. The top is one
+            # manufactured sheet: the game's broad light without its smears, a
+            # brushed grain along its length and a panel joint every metre.
+            h_, s_, v_ = hsv(rgb_in[box])
+            top = nd.binary_opening(m & (l > 0.58) & (s_ < 0.22), iterations=2)
+            if top.any():
+                ty, tx = np.nonzero(top)
+                wide = (tx.max() - tx.min()) >= (ty.max() - ty.min())
+                soft = nd.gaussian_filter(np.where(top, l, float(l[top].mean())), 3.0)
+                run = xx if wide else yy
+                over = yy if wide else xx
+                grain = (((over * 2654435761) % 7) / 7.0 - 0.5) * 0.035
+                px[top] = ramp(STEEL, np.clip(0.74 + 0.22 * soft + grain, 0, 1)[top])
+                joint = top & ((run - (tx.min() if wide else ty.min())) % 32 == 31)
+                px[joint] *= 0.86
+                edge = top & ~nd.binary_erosion(top, iterations=1)
+                px[edge] *= 0.90
+        elif kind == "hob":
+            # An induction cooker. Each ring the game drew becomes a disc of black
+            # glass with one fine heat line; the steel round it is cleaned.
+            h_, s_, v_ = hsv(rgb_in[box])
+            steel = m & (l > 0.55) & (s_ < 0.22)
+            soft = nd.gaussian_filter(np.where(m, l, float(l[m].mean())), 2.0)
+            px[steel] = ramp(STEEL, np.clip(0.70 + 0.26 * soft, 0, 1)[steel])
+            dark = nd.binary_opening(m & (d >= 3) & (l < 0.32), iterations=1)
+            rings, count = nd.label(nd.binary_fill_holes(nd.binary_closing(dark, iterations=2)))
+            for j, sl in enumerate(nd.find_objects(rings), 1):
+                disc = rings == j
+                area = disc.sum()
+                hh, ww = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+                if area < 150 or not 0.6 < hh / max(1, ww) < 1.6 or not 0.62 < area / (hh * ww) < 0.92:
+                    continue                 # a ring is round; the oven door and the shadows are not
+                cy, cx = (sl[0].start + sl[0].stop - 1) / 2, (sl[1].start + sl[1].stop - 1) / 2
+                # the game draws a hob as an ellipse, so the heat line is one too
+                r = np.hypot((yy - cy) / (hh / 2), (xx - cx) / (ww / 2))
+                px[disc] = np.array([20, 21, 24.0])[None, :] + (np.clip(1 - r, 0, 1)[disc] * 14)[:, None]
+                px[disc & (np.abs(r - 0.60) < 1.5 / min(hh, ww))] = np.array([255, 122, 64.0])
+                px[disc & (np.abs(r - 0.28) < 1.2 / min(hh, ww))] = np.array([120, 58, 34.0])
+        elif kind == "bars":
+            # A cell door. Bars in polished steel, the wooden frame in graphite,
+            # and the colour band untouched.
+            h_, s_, v_ = hsv(rgb_in[box])
+            bar = m & (s_ < 0.20) & (l > 0.45)
+            px[bar] = ramp(STEEL, np.clip(0.5 + (l - 0.62) * 2.0, 0, 1)[bar])
+            frame = m & (h_ >= 8) & (h_ <= 50) & (s_ > 0.25) & (v_ < 0.50)
+            px[frame] = ramp(PANEL, np.clip(0.25 + 1.2 * l, 0, 1)[frame])
         elif kind == "console":
             # Everything the base pass made of the object stays. The one addition
             # is power: a display the game drew, vivid green or cyan or the paler
