@@ -10,8 +10,13 @@ a near-black outline, so a pixel's hue says what it is:
   outlines             blue-black
   reds and blues       kept, pushed toward neon
 
-Panels then get a thin light strip set a little in from their edge, the
-colour of a Laser Door's blue beam, with a soft glow around it.
+Panels then get lit trim a little in from their edge, with a soft glow around
+it. Every object is built from the same three materials, which is what holds
+a room together; what varies is the trim. Its colour says what the object is
+for (ACCENTS), and its cut is one of four (a closed loop, corner brackets, a
+dashed loop, a pair of rails), picked from the object's name so every view of
+one object matches. Big panels are also split by plate seams and carry a
+short row of status lights.
 """
 
 import numpy as np
@@ -19,6 +24,19 @@ from PIL import Image
 from scipy import ndimage as nd
 
 STRIP = np.array([95, 216, 255], float)      # the blue beam of Sci-Fi Security
+
+# Trim colour by what an object is for. All sit at one brightness and one
+# saturation, so a canteen and a cell block read as one prison.
+ACCENTS = {
+    "security": (95, 216, 255),     # doors, cells, cameras: the beam blue
+    "medical": (110, 255, 196),
+    "kitchen": (255, 190, 92),
+    "power": (255, 146, 64),
+    "leisure": (196, 140, 255),
+    "office": (204, 236, 255),
+    "labour": (255, 220, 84),
+}
+ACCENT_ORDER = list(ACCENTS)
 PANEL = [(0.00, (14, 18, 26)), (0.35, (30, 38, 50)), (0.70, (52, 64, 82)), (1.00, (96, 114, 140))]
 CLOTH = [(0.00, (8, 26, 34)), (0.45, (20, 70, 88)), (0.80, (44, 124, 150)), (1.00, (120, 200, 222))]
 STEEL = [(0.00, (8, 11, 18)), (0.30, (36, 46, 62)), (0.65, (86, 104, 130)), (0.88, (150, 172, 200)), (1.00, (214, 232, 250))]
@@ -48,7 +66,10 @@ def hsv(rgb):
     return h * 360, s, mx
 
 
-def reskin(img, mask=None, strips=True, no_strip=None):
+def reskin(img, mask=None, strips=True, no_strip=None, accent=None, style=None):
+    """accent and style are maps the size of the image: an index into
+    ACCENT_ORDER and a trim cut from 0 to 3 for every pixel, or None for the
+    beam blue in a closed loop everywhere."""
     a = np.asarray(img.convert("RGBA")).astype(float)
     rgb, alpha = a[..., :3] / 255, a[..., 3] / 255
     h, s, v = hsv(rgb)
@@ -90,18 +111,72 @@ def reskin(img, mask=None, strips=True, no_strip=None):
             psizes = nd.sum(plate, plab, range(1, pn + 1))
             body |= np.isin(plab, 1 + np.nonzero(psizes >= 3000)[0])
         inner = nd.binary_erosion(body, iterations=5)
-        line = inner & ~nd.binary_erosion(inner, iterations=2)
         blab, bn = nd.label(body)
         if bn:
             sizes = nd.sum(body, blab, range(1, bn + 1))
             big = np.isin(blab, 1 + np.nonzero(sizes >= 1400)[0])
-            line &= big
+        else:
+            big = np.zeros_like(body)
+        inner &= big
+        loop = inner & ~nd.binary_erosion(inner, iterations=2)
+        H, W = body.shape
+        yy, xx = np.mgrid[0:H, 0:W]
+        line = np.zeros_like(body)
+        seam = np.zeros_like(body)
+        leds = np.zeros_like(body)
+        colour = np.zeros((H, W, 3)) + STRIP
+        for lab, box in enumerate(nd.find_objects(blab), 1):
+            if box is None or sizes[lab - 1] < 1400:
+                continue
+            here = np.zeros_like(body)
+            here[box] = blab[box] == lab
+            cy, cx = (box[0].start + box[0].stop) // 2, (box[1].start + box[1].stop) // 2
+            cut = int(style[cy, cx]) if style is not None else 0
+            tint = np.array(ACCENTS[ACCENT_ORDER[int(accent[cy, cx])]], float) if accent is not None else STRIP
+            ring = loop & here
+            y0, y1, x0, x1 = box[0].start, box[0].stop, box[1].start, box[1].stop
+            if cut == 1:        # corner brackets
+                arm = max(6, min(y1 - y0, x1 - x0) // 4)
+                near_x = (xx < x0 + 5 + arm) | (xx >= x1 - 5 - arm)
+                near_y = (yy < y0 + 5 + arm) | (yy >= y1 - 5 - arm)
+                ring &= near_x & near_y
+            elif cut == 2:      # dashed loop
+                ring &= ((xx + yy) // 6) % 2 == 0
+            elif cut == 3:      # a pair of rails along the long side
+                if x1 - x0 >= y1 - y0:
+                    ring &= (xx > x0 + 9) & (xx < x1 - 10)
+                else:
+                    ring &= (yy > y0 + 9) & (yy < y1 - 10)
+            line |= ring
+            colour[here] = tint
+            # plate seams across a long panel, and status lights in a corner
+            core = nd.binary_erosion(here, iterations=8)
+            if sizes[lab - 1] >= 5000:
+                long_x = x1 - x0 >= y1 - y0
+                span = (x1 - x0) if long_x else (y1 - y0)
+                for k in range(1, max(2, span // 72)):
+                    at = (x0 if long_x else y0) + k * span // max(2, span // 72)
+                    seam |= core & ((xx == at) if long_x else (yy == at))
+            if sizes[lab - 1] >= 2600:
+                ys, xs = np.nonzero(core)
+                if len(ys):
+                    ly, lx = ys.min() + 1, xs.max() - 1
+                    for k in range(3):
+                        spot = (yy >= ly) & (yy < ly + 2) & (xx <= lx - k * 4) & (xx > lx - k * 4 - 2) & core
+                        leds |= spot
         if no_strip is not None:
             line &= ~no_strip
-        glow = nd.gaussian_filter(line.astype(float), 2.2) * 1.6
+            leds &= ~no_strip
+            seam &= ~no_strip
+        out[seam] = out[seam] * 0.55
+        lit = np.roll(seam, 1, axis=1) | np.roll(seam, 1, axis=0)
+        lit &= body & ~seam
+        out[lit] = np.clip(out[lit] * 1.18 + 6, 0, 255)
+        glow = nd.gaussian_filter((line | leds).astype(float), 2.2) * 1.6
         glow = np.clip(glow, 0, 1) * solid
-        out = out * (1 - 0.55 * glow[..., None]) + STRIP * 0.55 * glow[..., None]
-        out[line] = STRIP * 0.85 + out[line] * 0.15
+        out = out * (1 - 0.55 * glow[..., None]) + colour * 0.55 * glow[..., None]
+        out[line] = colour[line] * 0.85 + out[line] * 0.15
+        out[leds] = colour[leds] * 0.95 + 12
 
     res = np.dstack([np.clip(out, 0, 255), a[..., 3]])
     if mask is not None:

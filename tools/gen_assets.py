@@ -46,6 +46,47 @@ NO_STRIP = re.compile(r"^(d_)?(JailDoor|JailBars|SolitaryDoor|RoadGate|RoadBarri
 # Cells of the main sheet that hold signs no sprite bank names.
 KEEP_CELLS = {"objects.png": ((35, 0, 4, 14), (0, 2, 2, 2))}
 
+# What an object is for, by its name, which picks the colour of its trim.
+# First match wins; anything unmatched is security, the beam blue.
+PURPOSE = (
+    ("medical", r"Medical|Morgue|Doctor|Nurse|Psych|Pharma|Infirm|Surgery|Defib|Methadone"),
+    ("leisure", r"Pool|Tv|TV|Weights|Book|Radio|Sofa|Arcade|Game|Gym|Piano|Guitar|Altar|Prayer|Pew|Phone|Play|Swing|Yoga|Punch"),
+    ("kitchen", r"Cooker|Fridge|Sink|Serving|^Table|^Bench|Tray|Kitchen|Canteen|Dish|Oven|Freezer|Vending|Drink"),
+    ("power", r"Power|Generator|Capacitor|Water|Pump|Pipe|Boiler|Switch|Cable|Electric|Light|Sprinkler|Valve|Solar|Wind|Batter"),
+    ("office", r"Desk|Filing|Office|Computer|School|Visitor|Chair|Shop|Till|Mail|Parole|Court|Lectern|Whiteboard"),
+    ("labour", r"Workshop|Saw|Press|Carpenter|Laundry|Ironing|Cleaning|Garden|Farm|Forestry|Recycl|Loom|Sewing|Basket|Crate|Pallet|Truck"),
+)
+PURPOSE = tuple((skin.ACCENT_ORDER.index(k), re.compile(v)) for k, v in PURPOSE)
+
+
+def trim_maps(size, bank):
+    """For every pixel, the purpose and the trim cut of the sprite it belongs
+    to. A sprite's other views sit to its right on the sheet, so each sprite
+    claims the ground to its right as far as the next named sprite."""
+    import zlib
+    accent = np.zeros((size[1], size[0]), np.uint8)
+    style = np.zeros((size[1], size[0]), np.uint8)
+    bare = np.zeros((size[1], size[0]), np.uint8)
+    taken = np.zeros((size[1], size[0]), bool)
+    found = [s for s in sprites(bank) if s[1] * CELL < size[0] and s[2] * CELL < size[1]]
+    for name, x, y, w, h, _ in found:
+        taken[y * CELL:(y + h) * CELL, x * CELL:(x + w) * CELL] = True
+    for name, x, y, w, h, _ in found:
+        base = re.sub(r"^(d_)?", "", name)
+        purpose = next((i for i, rx in PURPOSE if rx.search(base)), 0)
+        cut = zlib.crc32(base.encode()) % 4
+        x0, x1, y0, y1 = x * CELL, (x + w) * CELL, y * CELL, (y + max(w, h)) * CELL
+        reach = min(size[0], x1 + 4 * max(w, h) * CELL)
+        free = ~taken[y0:(y + h) * CELL, x1:reach]
+        # stop at the first column another named sprite owns
+        blocked = np.nonzero(~free.all(axis=0))[0]
+        stop = x1 + (blocked[0] if len(blocked) else reach - x1)
+        for m, v in ((accent, purpose), (style, cut), (bare, 1 if NO_STRIP.match(name) else 0)):
+            m[y0:(y + h) * CELL, x0:x1] = v
+            m[y0:y1, x1:stop] = v
+    return accent, style, bare.astype(bool)
+
+
 # Who and what the 3D re-skin leaves alone, by the name of the shape.
 KEEP_SHAPES = re.compile(
     r"^(armedGuard|chef|chief|doctor|dogHandler|fireman|foreman|gardener|guard|guardDog|janitor|paramedic|priest"
@@ -111,8 +152,8 @@ def shape_masks(shapes_dir, size):
 
 # What the Workshop card shows, as rows of sprites from the main sheet.
 CARD_ROWS = (("Bed", "BunkBed", "Toilet", "Sink", "ShowerHead", "Door"),
-             ("Table", "OfficeDesk"),
-             ("Bench", "PoolTable"))
+             ("Table", "OfficeDesk", "Bookshelf"),
+             ("Cooker", "Fridge", "PoolTable"))
 
 
 def card_art(sheet, bank):
@@ -149,8 +190,8 @@ def main():
     for sheet, bank in SHEETS:
         img = Image.open(os.path.join(game, sheet)).convert("RGBA")
         keep = named_mask(img.size, os.path.join(game, bank), KEEP, KEEP_CELLS.get(sheet, ()))
-        bare = named_mask(img.size, os.path.join(game, bank), NO_STRIP)
-        done = skin.reskin(img, mask=~keep, no_strip=bare)
+        accent, style, bare = trim_maps(img.size, os.path.join(game, bank))
+        done = skin.reskin(img, mask=~keep, no_strip=bare, accent=accent, style=style)
         done.save(os.path.join(out, sheet), optimize=True)
         if sheet == "objects.png":
             card_art(done, os.path.join(game, bank)).save(os.path.join(ROOT, "tools", "card-art.png"), optimize=True)
