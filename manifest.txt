@@ -2,3 +2,6 @@ Name                 "Sci-Fi Objects"
 Author               Knight
 Description          "Re-skins the furniture and equipment of the whole prison as dark sci-fi hardware, in 2D and in 3D, to match Sci-Fi Security. Wooden tables, desks and doors become gunmetal panels with lit trim set into the edge, coloured by what the object is for (blue for security, amber for the kitchen, green for medical, violet for leisure, orange for power), beds and cloth turn deep teal, and sinks, toilets, showers, benches, cookers and the rest of the metal turn a dark blue alloy. People, plants, food and the game's warning signs are drawn as they always were. It changes how things look and nothing else."
 Version              1.1
+IsTranslation        false
+FileID               F3804744162
+SteamAuthor          A76561199183450488
