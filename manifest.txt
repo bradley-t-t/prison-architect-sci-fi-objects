@@ -1,0 +1,4 @@
+Name                 "Sci-Fi Objects"
+Author               Knight
+Description          "Re-skins the furniture and equipment of the whole prison as dark sci-fi hardware, in 2D and in 3D, to match Sci-Fi Security. Wooden tables, desks and doors become gunmetal panels with a blue light strip set into the edge, beds and cloth turn deep teal, and sinks, toilets, showers, benches, cookers and the rest of the metal turn a dark blue alloy. People, plants, food and the game's warning signs are drawn as they always were. It changes how things look and nothing else."
+Version              1.0
