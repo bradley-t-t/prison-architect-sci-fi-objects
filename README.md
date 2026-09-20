@@ -32,11 +32,43 @@ Its cut is one of four, a closed loop, corner brackets, a dashed loop or a pair
 of rails, picked from the object's name so every view of one object matches. Big
 panels are also split by plate seams and carry a short row of status lights.
 
+## What is redrawn
+
+A recolour alone leaves a bed looking like a bed in different paint. About six in
+ten of the objects the mod touches are redrawn as something else, by one of
+twelve patterns picked from the object's name. The game's own outline and its
+light and shade are kept, so every object stays the size and shape it was and
+still reads at a glance.
+
+| Objects | Redrawn as |
+| :--- | :--- |
+| Beds, bunks, stretchers, morgue slabs | A sleep pod under a glass canopy |
+| Toilets, sinks, showers, baths, drinking fountains | White composite with lit water |
+| Tables, benches, desks, counters, exercise and prayer mats | A dark slab under a lit grid |
+| Cookers, fridges, televisions, phones, monitors, lockers, workshop and laundry machines | The casing kept, every display lit, buttons in their own colours, one row of indicator lamps |
+| Bookshelves, storage shelves, radiators | Slatted data racks |
+| Generators, capacitors, pumps, boilers, power and water stations, the electric chair | A glowing core inside two rings |
+| Bins, boxes, crates, barrels, laundry baskets | A hazard band and a lid lamp |
+| Doors, gates, checkpoints | Plated bulkheads with a lit seam |
+| Chairs, sofas, stools, pews, bleachers | A moulded shell with a lit cushion |
+| Lights and lamps | A housing round a core of light |
+| Trucks, vans, cars, helicopters, boats | A dark hull with lit glass and a running light |
+| Windows, mirrors, blackboards, the cinema screen | A pane of held light |
+
+A display is found by colour, not by darkness. The game draws a screen vivid
+green or cyan, or the paler blue of a monitor wall, and the darkest rectangle on
+an object is usually only its base. Jail doors, solitary doors and road gates are
+bars, so they change colour and are not redrawn.
+
 The beam blue is the blue of a Laser Door's beam. Bars, mesh and pipes change
 colour but carry no strip, because there is no flat panel for one to sit on.
 
-People, animals, plants, food, fire, contraband, uniforms and the signs the game
-draws over things are left exactly as the game drew them.
+People, animals, plants, food, fire, contraband, tools, weapons, uniforms and
+the signs and icons the game draws over things are left exactly as the game drew
+them. A kept sprite's other pictures are often unnamed in the sprite bank, so the
+generator also keeps any picture beside one that shares its colours. That is what
+stops the smaller stacks of a meal, or a sleeping guard dog, from being recoloured
+when only the first picture has a name.
 
 ## How it is built
 
