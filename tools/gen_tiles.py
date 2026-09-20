@@ -20,6 +20,7 @@ import re
 import sys
 
 import numpy as np
+from scipy import ndimage
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -35,10 +36,10 @@ WALL_BLOCK = (7, 4)          # a Connected wall is a block of pieces this many c
 FLOORS = {
     "ConcreteFloor": "neutral", "ConcreteTiles": "neutral", "PavingStone": "neutral", "CeramicFloor": "neutral",
     "FancyTiles": "neutral", "NewCheckeredFloor": "neutral", "HexagonalTiles": "neutral",
-    "TriangularTiles": "neutral", "SolacoFloor": "neutral",
+    "TriangularTiles": "neutral",
     "WoodenFloor": "composite", "DarkWoodFloor": "composite", "LaminateFlooringFR": "composite",
     "ReclaimedBrickFloor": "composite", "MosaicFloor": "composite", "NewIronFloor": "composite",
-    "MetalFloor": "metal", "NewCargoFloor": "metal", "GrateFloor": "metal",
+    "MetalFloor": "metal", "GrateFloor": "metal",
 }
 WALLS = {
     "ConcreteWall": "neutral", "PerimeterWall": "neutral", "NewTiledWall": "neutral", "NewBBlockWall": "neutral",
@@ -109,10 +110,13 @@ def rematerial(rgba, mode, mid=0.5):
     h, s, v = skin.hsv(rgb)
     lum = rgb @ np.array([0.299, 0.587, 0.114])
     out = rgb * 255
-    grey = s <= 0.25
     gain = 1.22 if mode == "metal" else 1.08
     val = np.clip(0.5 + (lum - 0.5) * gain, 0, 1) * 255
-    out[grey] = np.stack([val, val, np.clip(val * 1.012, 0, 255)], -1)[grey]
+    # Whether a pixel is paint or plain surface is asked of its neighbourhood and
+    # answered by degrees. A hard line through a surface whose saturation sits on
+    # it leaves the pixels just over as specks of the old colour.
+    paint = np.clip((ndimage.uniform_filter(s, 5) - 0.27) / 0.12, 0, 1)[..., None]
+    out = out * paint + np.stack([val, val, np.clip(val * 1.012, 0, 255)], -1) * (1 - paint)
     if mode == "composite":
         # One continuous mapping for the whole material. Sorting pixels into grey
         # and warm at a threshold maps neighbours either side of it differently,

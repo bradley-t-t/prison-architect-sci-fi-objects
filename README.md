@@ -22,7 +22,7 @@ object, price, room or rule is touched.
 | Displays the game drew: monitor walls, arcade and machine screens | Lit in their own colour, with scanlines |
 | Built floors in grey: concrete, tiles, paving, ceramic, checkered, hexagonal, triangular | A true neutral at the same brightness; concrete, concrete tiles and paving stone get a lit top edge and a shaded bottom edge, so each slab reads as a panel |
 | Built floors in brown: wood, dark wood, laminate, reclaimed brick, mosaic, iron | Titanium composite with the boards, bricks and pattern kept, and each one as dark or light as it was |
-| Metal, cargo and grate floors | Neutral steel with more contrast |
+| Metal and grate floors | Neutral steel with more contrast |
 | Built walls: concrete, perimeter, tiled, block, brick, the painted walls and every security grade | Neutral, or composite for brick, with each grade's colour band kept |
 
 ## What never changes
@@ -56,7 +56,8 @@ table, and follows its host.
 
 `tools/gen_tiles.py` re-materials the tileset one named material at a time, so
 grass, dirt, sand, water, roads and every other natural tile stay as the game
-drew them. The art deco wall keeps its gold.
+drew them. The art deco wall keeps its gold, and the Solaco and cargo floors are
+blue steel with hazard stripes already, so they stay too.
 
 The game takes `tilesetpadded.png` whole from one mod, and Sci-Fi Security
 already ships one carrying its laser fences. So the generator builds on
